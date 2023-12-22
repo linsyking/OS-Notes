@@ -27,13 +27,13 @@ fn execute(line: String) -> Result<(), Interrupt> {
             // Creating the child process
             let pres = unsafe { fork() }.map_err(|_| Interrupt::ForkError)?;
             match pres {
-                ForkResult::Parent { child } => {
-                    println!(
-                        "Parent process, waiting for the child (pid: {}) to complete...",
-                        child.as_raw()
-                    );
+                ForkResult::Parent { .. } => {
+                    // println!(
+                    //     "Parent process, waiting for the child (pid: {}) to complete...",
+                    //     child.as_raw()
+                    // );
                     wait().map_err(|e| Interrupt::ExecError(e))?;
-                    println!("Child process {} exited!", child.as_raw());
+                    // println!("Child process {} exited!", child.as_raw());
                 }
                 ForkResult::Child => {
                     let pname = CString::new(args[0]).unwrap();
@@ -54,7 +54,7 @@ fn main() {
     let stdin = io::stdin();
     loop {
         let mut line = String::new();
-        print!("sh> ");
+        print!("$> ");
         io::stdout().flush().unwrap();
         if let Ok(len) = stdin.lock().read_line(&mut line) {
             if len == 0 {
