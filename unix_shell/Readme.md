@@ -6,4 +6,4 @@
 
 Writing this in C needs using `fork()`, `exec()`, `wait()`, `dup2()`, and `pipe()`.
 
-In Rust we use `nix` library to call those syscalls.
+In Rust we use `nix` library to do those syscalls.
