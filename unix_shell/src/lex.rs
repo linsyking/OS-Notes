@@ -6,6 +6,13 @@ pub enum Token {
     LeftRedirect,
 }
 
+fn push_str(toks: &mut Vec<Token>, cur: &mut String) {
+    if !cur.is_empty() {
+        toks.push(Token::Str(cur.clone()));
+        cur.clear();
+    }
+}
+
 pub fn lex(line: &String) -> Vec<Token> {
     // A simple lexer
     let mut toks = Vec::new();
@@ -14,9 +21,12 @@ pub fn lex(line: &String) -> Vec<Token> {
     let mut it = line.chars();
     while let Some(c) = it.next() {
         match c {
+            '\n' => {
+                // EOL
+                push_str(&mut toks, &mut cur);
+            }
             '\\' => {
                 let cn = it.next().unwrap();
-                cur.push(c);
                 cur.push(cn);
                 continue;
             }
@@ -24,8 +34,7 @@ pub fn lex(line: &String) -> Vec<Token> {
                 if is_in_str {
                     is_in_str = false;
                     // Terminate string
-                    toks.push(Token::Str(cur.clone()));
-                    cur.clear();
+                    push_str(&mut toks, &mut cur);
                 } else {
                     is_in_str = true;
                 }
@@ -34,31 +43,26 @@ pub fn lex(line: &String) -> Vec<Token> {
                 cur.push(c);
             }
             ' ' => {
-                toks.push(Token::Str(cur.clone()));
-                cur.clear();
+                push_str(&mut toks, &mut cur);
             }
             '|' => {
                 // Pipe
-                toks.push(Token::Str(cur.clone()));
+                push_str(&mut toks, &mut cur);
                 toks.push(Token::Pipe);
-                cur.clear();
             }
             '>' => {
                 // R-Redirect
-                toks.push(Token::Str(cur.clone()));
+                push_str(&mut toks, &mut cur);
                 toks.push(Token::RightRedirect);
-                cur.clear();
             }
             '<' => {
                 // L-Redirect
-                toks.push(Token::Str(cur.clone()));
+                push_str(&mut toks, &mut cur);
                 toks.push(Token::LeftRedirect);
-                cur.clear();
             }
             '\0' => {
                 // EOF
-                toks.push(Token::Str(cur.clone()));
-                cur.clear();
+                push_str(&mut toks, &mut cur);
                 break;
             }
             _ => {

@@ -20,40 +20,42 @@ enum Interrupt {
 
 fn execute(line: &String) -> Result<(), Interrupt> {
     let args = lex(line);
-    let len = args.len();
-    if len == 0 {
-        return Ok(());
-    }
-    if let Token::Str(cmd0) = args[0] {
-        if len == 1 && cmd0 == "exit" {
-            Err(Interrupt::Exit(0))
-        } else {
-            // Creating the child process
-            let pres = unsafe { fork() }.map_err(|_| Interrupt::ForkError)?;
-            match pres {
-                ForkResult::Parent { .. } => {
-                    // println!(
-                    //     "Parent process, waiting for the child (pid: {}) to complete...",
-                    //     child.as_raw()
-                    // );
-                    wait().map_err(|e| Interrupt::ExecError(e))?;
-                    // println!("Child process {} exited!", child.as_raw());
-                }
-                ForkResult::Child => {
-                    let pname = CString::new(cmd0).unwrap();
-                    let pname = pname.as_c_str();
-                    let pargs = args.clone();
-                    let pargs: Vec<CString> =
-                        pargs.iter().map(|x| CString::new(*x).unwrap()).collect();
-                    let pargs: Vec<&CStr> = pargs.iter().map(|x| x.as_c_str()).collect();
-                    execvp(pname, &pargs).map_err(|e| Interrupt::ExecError(e))?;
-                }
-            }
-            Ok(())
-        }
-    }else {
-        Err(Interrupt::SyntaxError)
-    }
+    println!("{:?}", args);
+    Ok(())
+    // let len = args.len();
+    // if len == 0 {
+    //     return Ok(());
+    // }
+    // if let Token::Str(cmd0) = args[0] {
+    //     if len == 1 && cmd0 == "exit" {
+    //         Err(Interrupt::Exit(0))
+    //     } else {
+    //         // Creating the child process
+    //         let pres = unsafe { fork() }.map_err(|_| Interrupt::ForkError)?;
+    //         match pres {
+    //             ForkResult::Parent { .. } => {
+    //                 // println!(
+    //                 //     "Parent process, waiting for the child (pid: {}) to complete...",
+    //                 //     child.as_raw()
+    //                 // );
+    //                 wait().map_err(|e| Interrupt::ExecError(e))?;
+    //                 // println!("Child process {} exited!", child.as_raw());
+    //             }
+    //             ForkResult::Child => {
+    //                 let pname = CString::new(cmd0).unwrap();
+    //                 let pname = pname.as_c_str();
+    //                 let pargs = args.clone();
+    //                 let pargs: Vec<CString> =
+    //                     pargs.iter().map(|x| CString::new(*x).unwrap()).collect();
+    //                 let pargs: Vec<&CStr> = pargs.iter().map(|x| x.as_c_str()).collect();
+    //                 execvp(pname, &pargs).map_err(|e| Interrupt::ExecError(e))?;
+    //             }
+    //         }
+    //         Ok(())
+    //     }
+    // }else {
+    //     Err(Interrupt::SyntaxError)
+    // }
 }
 
 fn main() {
