@@ -4,20 +4,32 @@ use crate::lex::Token;
 pub enum Proc {
     SubProc(Vec<String>),
     Pipe(Box<Proc>, Box<Proc>),
-    RRed(Box<Proc>, Box<Proc>),
-    LRed(Box<Proc>, Box<Proc>),
+    RRed(Box<Proc>, String),
+    LRed(Box<Proc>, String),
 }
 
-fn fill(proc: &Proc, cs: Vec<String>) -> Proc {
-    match proc {
-        Proc::SubProc(_) => Proc::SubProc(cs),
-        Proc::Pipe(lhs, _) => Proc::Pipe(lhs.clone(), Box::new(Proc::SubProc(cs))),
-        Proc::RRed(lhs, _) => Proc::RRed(lhs.clone(), Box::new(Proc::SubProc(cs))),
-        Proc::LRed(lhs, _) => Proc::LRed(lhs.clone(), Box::new(Proc::SubProc(cs))),
+fn read_until_op(it: &mut std::slice::Iter<Token>) -> Option<Vec<String>> {
+    let mut res = Vec::new();
+    while let Some(Token::Str(cmd)) = it.next() {
+        res.push(cmd.clone());
+    }
+    if res.is_empty() {
+        None
+    } else {
+        Some(res)
     }
 }
 
-pub fn parse(toks: Vec<Token>) -> Proc {
+fn read_one_word(it: &mut std::slice::Iter<Token>) -> Option<String> {
+    let m = it.next()?;
+    if let Token::Str(s) = m {
+        Some(s.clone())
+    } else {
+        None
+    }
+}
+
+pub fn parse(toks: Vec<Token>) -> Option<Proc> {
     // Parse
     // All operators are left-associative and have the same precedence
     // p1 | p2 | p3 == (p1 | p2) | p3
@@ -27,15 +39,15 @@ pub fn parse(toks: Vec<Token>) -> Proc {
     // p1 > p2 | p3 == (p1 > p2) | p3
     let mut cs = Vec::new();
     let mut cur = Proc::SubProc(Vec::new());
-    for tok in toks.iter() {
+    let mut it = toks.iter();
+    while let Some(tok) = it.next() {
         match tok {
             Token::Str(cmd) => cs.push(cmd.clone()),
             Token::Pipe => {
-                cur = fill(&cur, cs.clone());
                 cs.clear();
             }
             _ => todo!(),
         }
     }
-    cur
+    Some(cur)
 }
