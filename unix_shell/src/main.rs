@@ -15,6 +15,7 @@ use rustyline::error::ReadlineError;
 enum Interrupt {
     SyntaxError,
     ExecError(Errno),
+    ChildError(Errno),
     ForkError,
     Exit(i32),
 }
@@ -40,7 +41,7 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
             // Match Internal Commnads
             let cmd0 = cmd[0].as_str();
             match cmd0 {
-                "exit" => {
+                "exit" if cmd.len() <= 2 => {
                     if let Some(code) = cmd.get(1) {
                         if let Ok(code) = code.parse() {
                             Err(Interrupt::Exit(code))
@@ -52,7 +53,7 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
                         Err(Interrupt::Exit(0))
                     }
                 }
-                "cd" => {
+                "cd" if cmd.len() <= 2 => {
                     if let Some(path) = cmd.get(1) {
                         chdir(path.as_str()).map_err(|e| Interrupt::ExecError(e))?;
                         Ok(())
@@ -117,7 +118,7 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
                                 .map(|x| CString::new(x.clone()).unwrap())
                                 .collect();
                             let pargs: Vec<&CStr> = pargs.iter().map(|x| x.as_c_str()).collect();
-                            execvp(pname, &pargs).map_err(|e| Interrupt::ExecError(e))?;
+                            execvp(pname, &pargs).map_err(|e| Interrupt::ChildError(e))?;
 
                             // This is not necessary.
                             // When a process terminates, all of its open files are closed automatically by the kernel.
@@ -189,6 +190,10 @@ fn main() {
                 }
                 Interrupt::ExecError(e) => {
                     eprintln!("Exec Error: {}", e.desc());
+                }
+                Interrupt::ChildError(e) => {
+                    eprintln!("Sub-process Error: {}", e.desc());
+                    exit(1);
                 }
                 Interrupt::Exit(code) => exit(code),
             }
