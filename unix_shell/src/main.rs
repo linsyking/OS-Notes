@@ -183,15 +183,12 @@ fn main() {
             match e {
                 Interrupt::SyntaxError => {
                     eprintln!("Syntax Error!");
-                    exit(1);
                 }
                 Interrupt::ForkError => {
                     eprintln!("Fork Error!");
-                    exit(1);
                 }
                 Interrupt::ExecError(e) => {
                     eprintln!("Exec Error: {}", e.desc());
-                    exit(1);
                 }
                 Interrupt::Exit(code) => exit(code),
             }
