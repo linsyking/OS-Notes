@@ -2,12 +2,12 @@ use nix::errno::Errno;
 use nix::fcntl::{open, OFlag};
 use nix::sys::stat::Mode;
 use nix::sys::wait::wait;
-use nix::unistd::{close, ForkResult};
+use nix::unistd::ForkResult;
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
 use std::process::exit;
 use unix_shell::ast::{parse, Proc};
-use unix_shell::lex::{lex, Token};
+use unix_shell::lex::lex;
 
 use rustyline::error::ReadlineError;
 
