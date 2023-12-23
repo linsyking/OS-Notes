@@ -52,9 +52,6 @@ fn read_until_op(it: &mut std::slice::Iter<Token>) -> Option<(Option<Op>, Comman
 pub fn parse(toks: Vec<Token>) -> Option<Proc> {
     // Parse
     // All operators are left-associative and have the same precedence
-    // p1 | p2 | p3 == (p1 | p2) | p3
-    // p1 > p2 > p3 == (p1 > p2) > p3
-    // p1 < p2 < p3 == (p1 < p2) < p3
     // p1 | p2 > p3 == (p1 | p2) > p3
     // p1 > p2 | p3 == (p1 > p2) | p3
     let mut cur = Proc::SubProc((Vec::new(), false));
