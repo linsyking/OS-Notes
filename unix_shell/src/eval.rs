@@ -32,24 +32,10 @@ pub enum Input {
     Pipefile(String),
 }
 
-fn pipe_output(output: &Output) -> bool {
-    match output {
-        Output::Pipefile(_) => true,
-        _ => false,
-    }
-}
-
-fn pipe_input(input: &Input) -> bool {
-    match input {
-        Input::Pipefile(_) => true,
-        _ => false,
-    }
-}
-
 const STDIN_FILENO: i32 = 0;
 const STDOUT_FILENO: i32 = 1;
 
-pub fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
+pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Result<(), Interrupt> {
     match cmd {
         Proc::SubProc((cmd, is_background)) => {
             if cmd.is_empty() {
@@ -79,20 +65,25 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt>
                         Ok(())
                     }
                 }
+                "cz" => {
+                    // Collect Zombie Processes
+                    while let Ok(_) = wait() {}
+                    Ok(())
+                }
                 _ => {
                     // Execute as normal commands
                     // Creating the child process
                     let pres = unsafe { fork() }.map_err(|_| Interrupt::ForkError)?;
                     match pres {
-                        ForkResult::Parent { .. } => {
-                            // println!(
-                            //     "Parent process, waiting for the child (pid: {}) to complete...",
-                            //     child.as_raw()
-                            // );
-                            if !is_background && !pipe_output(output) && !pipe_input(input) {
+                        ForkResult::Parent { child } => {
+                            println!(
+                                "[DEBUG] Parent process, waiting for the child (pid: {}) to complete...",
+                                child.as_raw()
+                            );
+                            if !is_background && !non_block {
                                 wait().map_err(|e| Interrupt::ExecError(e))?;
                             }
-                            // println!("Child process {} exited!", child.as_raw());
+                            println!("[DEBUG] Child process {} exited!", child.as_raw());
                         }
                         ForkResult::Child => {
                             match output {
@@ -151,29 +142,29 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt>
         }
         Proc::RRed(proc, path) => {
             // proc > path
-            eval(&proc, input, &Output::File(path.clone()))
+            eval(&proc, input, &Output::File(path.clone()), non_block)
         }
         Proc::LRed(proc, path) => {
             // proc < path
-            eval(&proc, &Input::File(path.clone()), output)
+            eval(&proc, &Input::File(path.clone()), output, non_block)
         }
         Proc::Pipe(lhs, rhs) => {
             let tmp_dir = tempdir().unwrap();
-            let fifo_path = tmp_dir.path().join(format!("{}.pipe", lhs.depth()));
+            let fifo_path = tmp_dir.path().join("fifo.pipe");
             mkfifo(&fifo_path, Mode::S_IRWXU).map_err(|e| Interrupt::ExecError(e))?;
             let file_name = fifo_path.into_os_string().into_string().unwrap();
-            // println!("Creating tmp pipe {}", file_name);
-            eval(lhs, input, &Output::Pipefile(file_name.clone()))?;
+            println!("[DEBUG] Creating tmp pipe {}", file_name);
+            eval(lhs, input, &Output::Pipefile(file_name.clone()), true)?;
             eval(
                 &Proc::SubProc(rhs.clone()),
                 &Input::Pipefile(file_name),
                 output,
+                true,
             )?;
             // Wait for the two processes to finish
             wait().map_err(|e| Interrupt::ExecError(e))?;
-            tmp_dir
-                .close()
-                .map_err(|_| Interrupt::OtherError(String::from("Tmp dir close error")))?;
+            wait().map_err(|e| Interrupt::ExecError(e))?;
+            // Pipe will be automatically deleted
             Ok(())
         }
     }

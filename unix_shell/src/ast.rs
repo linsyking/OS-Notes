@@ -10,15 +10,6 @@ pub enum Proc {
     LRed(Box<Proc>, String),
 }
 
-impl Proc {
-    pub fn depth(&self) -> u32 {
-        match self {
-            Self::SubProc(_) => 1,
-            Self::Pipe(l, _) | Self::LRed(l, _) | Self::RRed(l, _) => l.depth() + 1,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 enum Op {
     Pipe,
