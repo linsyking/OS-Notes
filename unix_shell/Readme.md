@@ -11,3 +11,8 @@ In Rust we use `nix` library to do those syscalls.
 ## Redirection
 
 `dup2(fd1, fd2)` means if you do something to `fd2`, you will actually do it to `fd` without changing `fd2`.
+
+## Internal commands support
+
+- `exit`: exit with a given exit code
+- `cd`: change working directory

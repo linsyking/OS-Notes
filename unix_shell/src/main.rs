@@ -2,7 +2,7 @@ use nix::errno::Errno;
 use nix::fcntl::{open, OFlag};
 use nix::sys::stat::Mode;
 use nix::sys::wait::wait;
-use nix::unistd::ForkResult;
+use nix::unistd::{chdir, ForkResult};
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
 use std::process::exit;
@@ -50,6 +50,15 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
                     } else {
                         // Default exit 0
                         Err(Interrupt::Exit(0))
+                    }
+                }
+                "cd" => {
+                    if let Some(path) = cmd.get(1) {
+                        chdir(path.as_str()).map_err(|e| Interrupt::ExecError(e))?;
+                        Ok(())
+                    } else {
+                        // Do nothing
+                        Ok(())
                     }
                 }
                 _ => {
