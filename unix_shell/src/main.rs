@@ -1,17 +1,15 @@
 use nix::errno::Errno;
+use nix::fcntl::{open, OFlag};
+use nix::sys::stat::Mode;
 use nix::sys::wait::wait;
-use nix::unistd::ForkResult;
+use nix::unistd::{close, ForkResult};
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
-use std::{
-    io::{self, BufRead, Write},
-    process::exit,
-};
+use std::process::exit;
 use unix_shell::ast::{parse, Proc};
 use unix_shell::lex::{lex, Token};
 
 use rustyline::error::ReadlineError;
-use rustyline::DefaultEditor;
 
 #[derive(Debug)]
 enum Interrupt {
@@ -21,7 +19,22 @@ enum Interrupt {
     Exit(i32),
 }
 
-fn eval(cmd: &Proc) -> Result<(), Interrupt> {
+#[derive(Debug, Clone)]
+enum Output {
+    Stdout,
+    File(String),
+}
+
+#[derive(Debug, Clone)]
+enum Input {
+    Stdin,
+    File(String),
+}
+
+const STDIN_FILENO: i32 = 0;
+const STDOUT_FILENO: i32 = 1;
+
+fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
     match cmd {
         Proc::SubProc(cmd) => {
             // Match Internal Commnads
@@ -53,6 +66,24 @@ fn eval(cmd: &Proc) -> Result<(), Interrupt> {
                             // println!("Child process {} exited!", child.as_raw());
                         }
                         ForkResult::Child => {
+                            let mut fd = 0;
+                            match output {
+                                Output::Stdout => {}
+                                Output::File(path) => {
+                                    // fd = open(path)
+                                    // dup2(fd, stdout)
+                                    fd = open(
+                                        path.as_str(),
+                                        OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_TRUNC,
+                                        Mode::S_IRUSR
+                                            | Mode::S_IWUSR
+                                            | Mode::S_IWGRP
+                                            | Mode::S_IRGRP,
+                                    )
+                                    .map_err(|e| Interrupt::ExecError(e))?;
+                                    dup2(fd, STDOUT_FILENO).map_err(|e| Interrupt::ExecError(e))?;
+                                }
+                            }
                             let pname = CString::new(cmd0).unwrap();
                             let pname = pname.as_c_str();
                             let pargs = cmd.clone();
@@ -62,11 +93,21 @@ fn eval(cmd: &Proc) -> Result<(), Interrupt> {
                                 .collect();
                             let pargs: Vec<&CStr> = pargs.iter().map(|x| x.as_c_str()).collect();
                             execvp(pname, &pargs).map_err(|e| Interrupt::ExecError(e))?;
+                            match output {
+                                Output::File(_) if fd != 0 => {
+                                    close(fd).map_err(|e| Interrupt::ExecError(e))?;
+                                }
+                                _ => {}
+                            }
                         }
                     }
                     Ok(())
                 }
             }
+        }
+        Proc::RRed(proc, path) => {
+            // proc > path
+            eval(&proc, input, &Output::File(path.clone()))
         }
         _ => Ok(()),
     }
@@ -79,9 +120,8 @@ fn execute(line: &String) -> Result<(), Interrupt> {
         return Ok(());
     }
     if let Some(ast) = parse(args) {
-        println!("{:?}", ast);
-        // eval(&ast)
-        Ok(())
+        // println!("{:?}", ast); // Print the AST
+        eval(&ast, &Input::Stdin, &Output::Stdout)
     } else {
         Err(Interrupt::SyntaxError)
     }
@@ -95,7 +135,7 @@ fn main() {
             Ok(l) => {
                 rl.add_history_entry(l.as_str()).unwrap();
                 l
-            },
+            }
             Err(ReadlineError::Interrupted) => {
                 continue;
             }
