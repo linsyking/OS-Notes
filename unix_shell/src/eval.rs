@@ -55,7 +55,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt>
             if cmd.is_empty() {
                 return Ok(());
             }
-            // Match Internal Commnads
+            // Match Internal Commands
             let cmd0 = cmd[0].as_str();
             match cmd0 {
                 "exit" if cmd.len() <= 2 => {
