@@ -10,6 +10,9 @@ use std::{
 use unix_shell::ast::{parse, Proc};
 use unix_shell::lex::{lex, Token};
 
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
+
 #[derive(Debug)]
 enum Interrupt {
     SyntaxError,
@@ -53,8 +56,10 @@ fn eval(cmd: &Proc) -> Result<(), Interrupt> {
                             let pname = CString::new(cmd0).unwrap();
                             let pname = pname.as_c_str();
                             let pargs = cmd.clone();
-                            let pargs: Vec<CString> =
-                                pargs.iter().map(|x| CString::new(x.clone()).unwrap()).collect();
+                            let pargs: Vec<CString> = pargs
+                                .iter()
+                                .map(|x| CString::new(x.clone()).unwrap())
+                                .collect();
                             let pargs: Vec<&CStr> = pargs.iter().map(|x| x.as_c_str()).collect();
                             execvp(pname, &pargs).map_err(|e| Interrupt::ExecError(e))?;
                         }
@@ -74,51 +79,50 @@ fn execute(line: &String) -> Result<(), Interrupt> {
         return Ok(());
     }
     if let Some(ast) = parse(args) {
-        eval(&ast)
-        // if let Token::Str(cmd0) = args[0] {
-        //     if len == 1 && cmd0 == "exit" {
-        //         Err(Interrupt::Exit(0))
-        //     } else {
-        // } else {
-        //     Err(Interrupt::SyntaxError)
-        // }
+        println!("{:?}", ast);
+        // eval(&ast)
+        Ok(())
     } else {
         Err(Interrupt::SyntaxError)
     }
 }
 
 fn main() {
-    let stdin = io::stdin();
+    let mut rl = rustyline::DefaultEditor::new().unwrap();
     loop {
-        let mut line = String::new();
-        print!("$> ");
-        io::stdout().flush().unwrap();
-        if let Ok(len) = stdin.lock().read_line(&mut line) {
-            if len == 0 {
-                // EOF
-                return;
-            } else {
-                if let Err(e) = execute(&line) {
-                    match e {
-                        Interrupt::SyntaxError => {
-                            eprintln!("Syntax Error!");
-                            exit(1);
-                        }
-                        Interrupt::ForkError => {
-                            eprintln!("Fork Error!");
-                            exit(1);
-                        }
-                        Interrupt::ExecError(e) => {
-                            eprintln!("Exec Error: {}", e.desc());
-                            exit(1);
-                        }
-                        Interrupt::Exit(code) => exit(code),
-                    }
-                }
+        let readline = rl.readline("> ");
+        let line = match readline {
+            Ok(l) => {
+                rl.add_history_entry(l.as_str()).unwrap();
+                l
+            },
+            Err(ReadlineError::Interrupted) => {
+                continue;
             }
-        } else {
-            // Error!
-            exit(1);
+            Err(ReadlineError::Eof) => {
+                break;
+            }
+            Err(_) => {
+                println!("invalid input");
+                break;
+            }
+        };
+        if let Err(e) = execute(&line) {
+            match e {
+                Interrupt::SyntaxError => {
+                    eprintln!("Syntax Error!");
+                    exit(1);
+                }
+                Interrupt::ForkError => {
+                    eprintln!("Fork Error!");
+                    exit(1);
+                }
+                Interrupt::ExecError(e) => {
+                    eprintln!("Exec Error: {}", e.desc());
+                    exit(1);
+                }
+                Interrupt::Exit(code) => exit(code),
+            }
         }
     }
 }

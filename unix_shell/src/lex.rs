@@ -70,5 +70,6 @@ pub fn lex(line: &String) -> Vec<Token> {
             }
         }
     }
+    push_str(&mut toks, &mut cur);
     toks
 }
