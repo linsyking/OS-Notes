@@ -66,22 +66,38 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
                             // println!("Child process {} exited!", child.as_raw());
                         }
                         ForkResult::Child => {
-                            let mut fd = 0;
                             match output {
                                 Output::Stdout => {}
                                 Output::File(path) => {
                                     // fd = open(path)
                                     // dup2(fd, stdout)
-                                    fd = open(
+                                    let fd = open(
                                         path.as_str(),
                                         OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_TRUNC,
                                         Mode::S_IRUSR
                                             | Mode::S_IWUSR
                                             | Mode::S_IWGRP
-                                            | Mode::S_IRGRP,
+                                            | Mode::S_IRGRP
+                                            | Mode::S_IROTH,
                                     )
                                     .map_err(|e| Interrupt::ExecError(e))?;
                                     dup2(fd, STDOUT_FILENO).map_err(|e| Interrupt::ExecError(e))?;
+                                }
+                            }
+                            match input {
+                                Input::Stdin => {}
+                                Input::File(path) => {
+                                    let fd = open(
+                                        path.as_str(),
+                                        OFlag::O_RDONLY,
+                                        Mode::S_IRUSR
+                                            | Mode::S_IWUSR
+                                            | Mode::S_IWGRP
+                                            | Mode::S_IRGRP
+                                            | Mode::S_IROTH,
+                                    )
+                                    .map_err(|e| Interrupt::ExecError(e))?;
+                                    dup2(fd, STDIN_FILENO).map_err(|e| Interrupt::ExecError(e))?;
                                 }
                             }
                             let pname = CString::new(cmd0).unwrap();
@@ -93,12 +109,15 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
                                 .collect();
                             let pargs: Vec<&CStr> = pargs.iter().map(|x| x.as_c_str()).collect();
                             execvp(pname, &pargs).map_err(|e| Interrupt::ExecError(e))?;
-                            match output {
-                                Output::File(_) if fd != 0 => {
-                                    close(fd).map_err(|e| Interrupt::ExecError(e))?;
-                                }
-                                _ => {}
-                            }
+
+                            // This is not necessary.
+                            // When a process terminates, all of its open files are closed automatically by the kernel.
+                            // match output {
+                            //     Output::File(_) if fd != 0 => {
+                            //         close(fd).map_err(|e| Interrupt::ExecError(e))?;
+                            //     }
+                            //     _ => {}
+                            // }
                         }
                     }
                     Ok(())
@@ -108,6 +127,10 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
         Proc::RRed(proc, path) => {
             // proc > path
             eval(&proc, input, &Output::File(path.clone()))
+        }
+        Proc::LRed(proc, path) => {
+            // proc < path
+            eval(&proc, &Input::File(path.clone()), output)
         }
         _ => Ok(()),
     }
