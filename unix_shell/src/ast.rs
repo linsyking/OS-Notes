@@ -1,8 +1,10 @@
 use crate::lex::Token;
 
+type Command = (Vec<String>, bool);
+
 #[derive(Debug, Clone)]
 pub enum Proc {
-    SubProc(Vec<String>),
+    SubProc(Command), // Whether run in background
     Pipe(Box<Proc>, Box<Proc>),
     RRed(Box<Proc>, String),
     LRed(Box<Proc>, String),
@@ -15,8 +17,9 @@ enum Op {
     LRed,
 }
 
-fn read_until_op(it: &mut std::slice::Iter<Token>) -> Option<(Option<Op>, Vec<String>)> {
+fn read_until_op(it: &mut std::slice::Iter<Token>) -> Option<(Option<Op>, Command)> {
     let mut res = Vec::new();
+    let mut is_background = false;
     let mut op = None;
     while let Some(tok) = it.next() {
         match tok {
@@ -33,12 +36,16 @@ fn read_until_op(it: &mut std::slice::Iter<Token>) -> Option<(Option<Op>, Vec<St
                 op = Some(Op::RRed);
                 break;
             }
+            Token::Background => {
+                is_background = true;
+                break;
+            }
         }
     }
     if res.is_empty() {
         None
     } else {
-        Some((op, res))
+        Some((op, (res, is_background)))
     }
 }
 
@@ -50,7 +57,7 @@ pub fn parse(toks: Vec<Token>) -> Option<Proc> {
     // p1 < p2 < p3 == (p1 < p2) < p3
     // p1 | p2 > p3 == (p1 | p2) > p3
     // p1 > p2 | p3 == (p1 > p2) | p3
-    let mut cur = Proc::SubProc(Vec::new());
+    let mut cur = Proc::SubProc((Vec::new(), false));
     let mut it = toks.iter();
     let mut cur_op = None;
     while let Some((op, tok)) = read_until_op(&mut it) {
@@ -65,22 +72,22 @@ pub fn parse(toks: Vec<Token>) -> Option<Proc> {
             }
             Some(Op::RRed) => {
                 // cur > tok
-                if tok.len() != 1 {
+                if tok.0.len() != 1 {
                     // Not a file
                     return None;
                 } else {
                     // A file
-                    cur = Proc::RRed(Box::new(cur), tok[0].clone());
+                    cur = Proc::RRed(Box::new(cur), tok.0[0].clone());
                 }
             }
             Some(Op::LRed) => {
                 // cur < tok
-                if tok.len() != 1 {
+                if tok.0.len() != 1 {
                     // Not a file
                     return None;
                 } else {
                     // A file
-                    cur = Proc::LRed(Box::new(cur), tok[0].clone());
+                    cur = Proc::LRed(Box::new(cur), tok.0[0].clone());
                 }
             }
         }

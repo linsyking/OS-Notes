@@ -4,6 +4,7 @@ pub enum Token {
     Pipe,
     RightRedirect,
     LeftRedirect,
+    Background,
 }
 
 fn push_str(toks: &mut Vec<Token>, cur: &mut String) {
@@ -59,6 +60,11 @@ pub fn lex(line: &String) -> Vec<Token> {
                 // L-Redirect
                 push_str(&mut toks, &mut cur);
                 toks.push(Token::LeftRedirect);
+            }
+            '&' => {
+                // Background
+                push_str(&mut toks, &mut cur);
+                toks.push(Token::Background);
             }
             '\0' => {
                 // EOF

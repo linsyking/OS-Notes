@@ -37,7 +37,7 @@ const STDOUT_FILENO: i32 = 1;
 
 fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
     match cmd {
-        Proc::SubProc(cmd) => {
+        Proc::SubProc((cmd, is_background)) => {
             if cmd.is_empty() {
                 return Ok(());
             }
@@ -75,7 +75,9 @@ fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
                             //     "Parent process, waiting for the child (pid: {}) to complete...",
                             //     child.as_raw()
                             // );
-                            wait().map_err(|e| Interrupt::ExecError(e))?;
+                            if !is_background {
+                                wait().map_err(|e| Interrupt::ExecError(e))?;
+                            }
                             // println!("Child process {} exited!", child.as_raw());
                         }
                         ForkResult::Child => {
