@@ -38,6 +38,9 @@ const STDOUT_FILENO: i32 = 1;
 fn eval(cmd: &Proc, input: &Input, output: &Output) -> Result<(), Interrupt> {
     match cmd {
         Proc::SubProc(cmd) => {
+            if cmd.is_empty() {
+                return Ok(());
+            }
             // Match Internal Commnads
             let cmd0 = cmd[0].as_str();
             match cmd0 {
