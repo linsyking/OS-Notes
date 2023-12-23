@@ -55,6 +55,9 @@ fn main() {
                     exit(1);
                 }
                 Interrupt::Exit(code) => exit(code),
+                Interrupt::OtherError(e) => {
+                    eprintln!("Error: {}", e);
+                }
             }
         }
     }

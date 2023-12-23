@@ -5,9 +5,18 @@ type Command = (Vec<String>, bool);
 #[derive(Debug, Clone)]
 pub enum Proc {
     SubProc(Command), // Whether run in background
-    Pipe(Box<Proc>, Box<Proc>),
+    Pipe(Box<Proc>, Command),
     RRed(Box<Proc>, String),
     LRed(Box<Proc>, String),
+}
+
+impl Proc {
+    pub fn depth(&self) -> u32 {
+        match self {
+            Self::SubProc(_) => 1,
+            Self::Pipe(l, _) | Self::LRed(l, _) | Self::RRed(l, _) => l.depth() + 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -65,7 +74,7 @@ pub fn parse(toks: Vec<Token>) -> Option<Proc> {
             }
             Some(Op::Pipe) => {
                 // cur | tok
-                cur = Proc::Pipe(Box::new(cur), Box::new(Proc::SubProc(tok.clone())));
+                cur = Proc::Pipe(Box::new(cur), tok.clone());
             }
             Some(Op::RRed) => {
                 // cur > tok
