@@ -44,3 +44,11 @@ echo hello | head -c 1 | cat
 
 head /dev/urandom | tr -dc a-z | head -c 10
 ```
+
+## Known Issues
+
+- No post-processors, so if a program outputs something without `\n`, you might not see it
+
+## Reference
+
+- https://stackoverflow.com/questions/35007063/c-pipe-and-fork-closing-nothing-gets-printed

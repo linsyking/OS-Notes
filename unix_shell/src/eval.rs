@@ -1,9 +1,10 @@
 use crate::ast::Proc;
 use nix::errno::Errno;
 use nix::fcntl::{open, OFlag};
+use nix::libc::{STDIN_FILENO, STDOUT_FILENO};
 use nix::sys::stat::Mode;
 use nix::sys::wait::wait;
-use nix::unistd::{chdir, mkfifo, ForkResult};
+use nix::unistd::{chdir, mkfifo, write, ForkResult};
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
 use tempfile::tempdir;
@@ -31,9 +32,6 @@ pub enum Input {
     File(String),
     Pipefile(String),
 }
-
-const STDIN_FILENO: i32 = 0;
-const STDOUT_FILENO: i32 = 1;
 
 pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Result<(), Interrupt> {
     match cmd {
@@ -75,15 +73,15 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                     // Creating the child process
                     let pres = unsafe { fork() }.map_err(|_| Interrupt::ForkError)?;
                     match pres {
-                        ForkResult::Parent { child } => {
-                            println!(
-                                "[DEBUG] Parent process, waiting for the child (pid: {}) to complete...",
-                                child.as_raw()
-                            );
+                        ForkResult::Parent { child: _ } => {
+                            // println!(
+                            //     "[DEBUG] Parent process, waiting for the child (pid: {}) to complete...",
+                            //     child.as_raw()
+                            // );
                             if !is_background && !non_block {
                                 wait().map_err(|e| Interrupt::ExecError(e))?;
                             }
-                            println!("[DEBUG] Child process {} exited!", child.as_raw());
+                            // println!("[DEBUG] Child process {} exited!", child.as_raw());
                         }
                         ForkResult::Child => {
                             match output {
@@ -153,7 +151,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
             let fifo_path = tmp_dir.path().join("fifo.pipe");
             mkfifo(&fifo_path, Mode::S_IRWXU).map_err(|e| Interrupt::ExecError(e))?;
             let file_name = fifo_path.into_os_string().into_string().unwrap();
-            println!("[DEBUG] Creating tmp pipe {}", file_name);
+            // println!("[DEBUG] Creating tmp pipe {}", file_name);
             eval(lhs, input, &Output::Pipefile(file_name.clone()), true)?;
             eval(
                 &Proc::SubProc(rhs.clone()),
