@@ -21,11 +21,13 @@ In Rust we use `nix` library to do those syscalls.
 
 There are no semicolon, keywords. You are only allowed to do pipes and redirections.
 
+You cannot have 2 stdin for one command.
+
 The rules of those operators are:
 
 - `>` expects only **one** file location (might not exist), and there should be no other commands afterwards
-- `<` also expects **one** file location, but it can be followed by **other** two operators
-- `|` expects any commands
+- `<` also expects **one** file location and cannot be used after a pipe, but it can be followed by **other** two operators
+- `|` expects any commands, but not avoiding the rules above
 
 Invalid examples:
 
@@ -35,6 +37,7 @@ ls > a | cat
 ls < a < s
 ls | cat > b | m
 a |
+ls | cat < a
 ```
 
 ## Multiple pipes
@@ -43,6 +46,8 @@ a |
 echo hello | head -c 1 | cat
 
 head /dev/urandom | tr -dc a-z | head -c 10
+
+ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 ```
 
 ## Known Issues

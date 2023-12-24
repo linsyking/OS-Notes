@@ -4,7 +4,7 @@ use nix::fcntl::{open, OFlag};
 use nix::libc::{STDIN_FILENO, STDOUT_FILENO};
 use nix::sys::stat::Mode;
 use nix::sys::wait::wait;
-use nix::unistd::{chdir, mkfifo, write, ForkResult};
+use nix::unistd::{chdir, mkfifo, ForkResult};
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
 use tempfile::tempdir;
