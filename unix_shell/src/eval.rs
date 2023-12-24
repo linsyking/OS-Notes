@@ -33,6 +33,12 @@ pub enum Input {
     Pipefile(String),
 }
 
+pub fn check_prog(cmd: &Proc) -> Result<(), Interrupt> {
+    // Check if the command is valid
+    // TO-DO
+    Ok(())
+}
+
 pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Result<(), Interrupt> {
     match cmd {
         Proc::SubProc((cmd, is_background)) => {

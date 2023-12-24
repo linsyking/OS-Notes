@@ -1,7 +1,7 @@
 use nix::sys::wait::wait;
 use std::process::exit;
 use unix_shell::ast::parse;
-use unix_shell::eval::{eval, Input, Interrupt, Output};
+use unix_shell::eval::{check_prog, eval, Input, Interrupt, Output};
 use unix_shell::lex::lex;
 
 use rustyline::error::ReadlineError;
@@ -14,6 +14,7 @@ fn execute(line: &String) -> Result<(), Interrupt> {
     }
     if let Some(ast) = parse(args) {
         // println!("{:?}", ast); // Print the AST
+        check_prog(&ast)?;
         eval(&ast, &Input::Stdin, &Output::Stdout, false)
     } else {
         Err(Interrupt::SyntaxError)
