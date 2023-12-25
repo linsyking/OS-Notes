@@ -33,6 +33,7 @@ Invalid examples:
 
 ```
 ls > a > a
+ls > a < a
 ls > a | cat
 ls < a < s
 ls | cat > b | m

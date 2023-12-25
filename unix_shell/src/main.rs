@@ -8,6 +8,7 @@ use rustyline::error::ReadlineError;
 
 fn execute(line: &String) -> Result<(), Interrupt> {
     let args = lex(line);
+    // println!("{:?}", args); // Print the lexer result
     let len = args.len();
     if len == 0 {
         return Ok(());
@@ -17,7 +18,7 @@ fn execute(line: &String) -> Result<(), Interrupt> {
         check_prog(&ast)?;
         eval(&ast, &Input::Stdin, &Output::Stdout, false)
     } else {
-        Err(Interrupt::SyntaxError)
+        Err(Interrupt::ExecError(format!("Syntax error")))
     }
 }
 
@@ -44,21 +45,13 @@ fn main() {
         };
         if let Err(e) = execute(&line) {
             match e {
-                Interrupt::SyntaxError => {
-                    eprintln!("Syntax Error!");
-                }
-                Interrupt::ForkError => {
-                    eprintln!("Fork Error!");
-                }
-                Interrupt::ExecError(e) => {
-                    eprintln!("Exec Error: {}", e.desc());
-                }
                 Interrupt::ChildError(e) => {
-                    eprintln!("Sub-process Error: {}", e.desc());
+                    eprintln!("Sub-process Error: {}", e);
                     exit_code = 1;
+                    break;
                 }
                 Interrupt::Exit(code) => exit_code = code,
-                Interrupt::OtherError(e) => {
+                Interrupt::ExecError(e) => {
                     eprintln!("Error: {}", e);
                 }
             }

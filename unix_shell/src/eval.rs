@@ -1,5 +1,4 @@
 use crate::ast::Proc;
-use nix::errno::Errno;
 use nix::fcntl::{open, OFlag};
 use nix::libc::{STDIN_FILENO, STDOUT_FILENO};
 use nix::sys::stat::Mode;
@@ -7,15 +6,12 @@ use nix::sys::wait::wait;
 use nix::unistd::{chdir, mkfifo, ForkResult};
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
-use tempfile::tempdir;
+use std::fs::remove_file;
 
 #[derive(Debug)]
 pub enum Interrupt {
-    SyntaxError,
-    ExecError(Errno),
-    ChildError(Errno),
-    ForkError,
-    OtherError(String),
+    ChildError(String),
+    ExecError(String),
     Exit(i32),
 }
 
@@ -36,6 +32,12 @@ pub enum Input {
 pub fn check_prog(cmd: &Proc) -> Result<(), Interrupt> {
     // Check if the command is valid
     // TO-DO
+    match cmd {
+        Proc::SubProc((cs, _)) if cs.is_empty() => {
+            return Err(Interrupt::ExecError(format!("Error: Syntax error")));
+        }
+        _ => {}
+    }
     Ok(())
 }
 
@@ -53,7 +55,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                         if let Ok(code) = code.parse() {
                             Err(Interrupt::Exit(code))
                         } else {
-                            Err(Interrupt::SyntaxError)
+                            Err(Interrupt::ExecError(String::from("Syntax Error")))
                         }
                     } else {
                         // Default exit 0
@@ -62,7 +64,9 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                 }
                 "cd" if cmd.len() <= 2 => {
                     if let Some(path) = cmd.get(1) {
-                        chdir(path.as_str()).map_err(|e| Interrupt::ExecError(e))?;
+                        chdir(path.as_str()).map_err(|_| {
+                            Interrupt::ExecError(format!("Cannot cd such file or directory"))
+                        })?;
                         Ok(())
                     } else {
                         // Do nothing
@@ -71,13 +75,25 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                 }
                 "cz" => {
                     // Collect Zombie Processes
-                    while let Ok(_) = wait() {}
-                    Ok(())
+                    let mut has_child = true;
+                    while let Ok(_) = wait() {
+                        has_child = false;
+                    }
+                    if has_child {
+                        Err(Interrupt::ExecError(format!("No child process found")))
+                    } else {
+                        Ok(())
+                    }
                 }
                 _ => {
                     // Execute as normal commands
                     // Creating the child process
-                    let pres = unsafe { fork() }.map_err(|_| Interrupt::ForkError)?;
+                    // println!(
+                    //     "[DEBUG] Forking prog {:?}, input {:?}, output {:?}",
+                    //     cmd, input, output
+                    // );
+                    let pres = unsafe { fork() }
+                        .map_err(|_| Interrupt::ExecError(format!("Cannot fork")))?;
                     match pres {
                         ForkResult::Parent { child: _ } => {
                             // println!(
@@ -85,7 +101,9 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                             //     child.as_raw()
                             // );
                             if !is_background && !non_block {
-                                wait().map_err(|e| Interrupt::ExecError(e))?;
+                                wait().map_err(|e| {
+                                    Interrupt::ExecError(format!("Cannot wait, {}", e.desc()))
+                                })?;
                             }
                             // println!("[DEBUG] Child process {} exited!", child.as_raw());
                         }
@@ -104,28 +122,79 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                             | Mode::S_IRGRP
                                             | Mode::S_IROTH,
                                     )
-                                    .map_err(|e| Interrupt::ChildError(e))?;
-                                    dup2(fd, STDOUT_FILENO)
-                                        .map_err(|e| Interrupt::ChildError(e))?;
+                                    .map_err(|e| {
+                                        Interrupt::ChildError(format!(
+                                            "Subprocess {:?} error: {}",
+                                            cmd,
+                                            e.desc()
+                                        ))
+                                    })?;
+                                    dup2(fd, STDOUT_FILENO).map_err(|e| {
+                                        Interrupt::ChildError(format!(
+                                            "Subprocess {:?} error: {}",
+                                            cmd,
+                                            e.desc()
+                                        ))
+                                    })?;
                                 }
                                 Output::Pipefile(path) => {
+                                    // println!("[DEBUG] Setting output to {}", path);
                                     let fd = open(path.as_str(), OFlag::O_WRONLY, Mode::S_IWUSR)
-                                        .map_err(|e| Interrupt::ChildError(e))?;
-                                    dup2(fd, STDOUT_FILENO)
-                                        .map_err(|e| Interrupt::ChildError(e))?;
+                                        .map_err(|e| {
+                                            Interrupt::ChildError(format!(
+                                                "Subprocess {:?} pipefile {} open error: {}",
+                                                cmd,
+                                                path,
+                                                e.desc()
+                                            ))
+                                        })?;
+                                    dup2(fd, STDOUT_FILENO).map_err(|e| {
+                                        Interrupt::ChildError(format!(
+                                            "Subprocess {:?} error: {}",
+                                            cmd,
+                                            e.desc()
+                                        ))
+                                    })?;
                                 }
                             }
                             match input {
                                 Input::Stdin => {}
                                 Input::File(path) => {
                                     let fd = open(path.as_str(), OFlag::O_RDONLY, Mode::S_IRUSR)
-                                        .map_err(|e| Interrupt::ChildError(e))?;
-                                    dup2(fd, STDIN_FILENO).map_err(|e| Interrupt::ChildError(e))?;
+                                        .map_err(|e| {
+                                            Interrupt::ChildError(format!(
+                                                "Subprocess {:?} pipefile {} open error: {}",
+                                                cmd,
+                                                path,
+                                                e.desc()
+                                            ))
+                                        })?;
+                                    dup2(fd, STDIN_FILENO).map_err(|e| {
+                                        Interrupt::ChildError(format!(
+                                            "Subprocess {:?} error: {}",
+                                            cmd,
+                                            e.desc()
+                                        ))
+                                    })?;
                                 }
                                 Input::Pipefile(path) => {
+                                    // println!("[DEBUG] Setting input to {}", path);
                                     let fd = open(path.as_str(), OFlag::O_RDONLY, Mode::S_IRUSR)
-                                        .map_err(|e| Interrupt::ChildError(e))?;
-                                    dup2(fd, STDIN_FILENO).map_err(|e| Interrupt::ChildError(e))?;
+                                        .map_err(|e| {
+                                            Interrupt::ChildError(format!(
+                                                "Subprocess {:?} pipefile {} open error: {}",
+                                                cmd,
+                                                path,
+                                                e.desc()
+                                            ))
+                                        })?;
+                                    dup2(fd, STDIN_FILENO).map_err(|e| {
+                                        Interrupt::ChildError(format!(
+                                            "Subprocess {:?} error: {}",
+                                            cmd,
+                                            e.desc()
+                                        ))
+                                    })?;
                                 }
                             }
                             let pname = CString::new(cmd0).unwrap();
@@ -136,7 +205,13 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                 .map(|x| CString::new(x.clone()).unwrap())
                                 .collect();
                             let pargs: Vec<&CStr> = pargs.iter().map(|x| x.as_c_str()).collect();
-                            execvp(pname, &pargs).map_err(|e| Interrupt::ChildError(e))?;
+                            execvp(pname, &pargs).map_err(|e| {
+                                Interrupt::ChildError(format!(
+                                    "Subprocess {:?} cannot run execvp: {}",
+                                    cmd,
+                                    e.desc()
+                                ))
+                            })?;
                             // When a process terminates, all of its open files are closed automatically by the kernel
                         }
                     }
@@ -152,23 +227,46 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
             // proc < path
             eval(&proc, &Input::File(path.clone()), output, non_block)
         }
-        Proc::Pipe(lhs, rhs) => {
-            let tmp_dir = tempdir().unwrap();
-            let fifo_path = tmp_dir.path().join("fifo.pipe");
-            mkfifo(&fifo_path, Mode::S_IRWXU).map_err(|e| Interrupt::ExecError(e))?;
-            let file_name = fifo_path.into_os_string().into_string().unwrap();
-            // println!("[DEBUG] Creating tmp pipe {}", file_name);
-            eval(lhs, input, &Output::Pipefile(file_name.clone()), true)?;
+        Proc::Pipe(ps) => {
+            if ps.len() <= 1 {
+                // Invalid!
+                panic!("Invalid Pipe detected");
+            }
+            for id in 0..(ps.len() - 1) {
+                let fifo_path = format!("fifo{}.pipe", id);
+                // println!("[DEBUG] Creating tmp pipe {}", fifo_path);
+                mkfifo(fifo_path.as_str(), Mode::S_IRWXU)
+                    .map_err(|e| Interrupt::ExecError(format!("Makefifo error, {}", e.desc())))?;
+            }
             eval(
-                &Proc::SubProc(rhs.clone()),
-                &Input::Pipefile(file_name),
+                ps.first().unwrap(),
+                input,
+                &Output::Pipefile(format!("fifo0.pipe")),
+                true,
+            )?;
+            for id in 1..(ps.len() - 1) {
+                let cps = &ps[id];
+                eval(
+                    cps,
+                    &Input::Pipefile(format!("fifo{}.pipe", id - 1)),
+                    &Output::Pipefile(format!("fifo{}.pipe", id)),
+                    true,
+                )?;
+            }
+            eval(
+                ps.last().unwrap(),
+                &Input::Pipefile(format!("fifo{}.pipe", ps.len() - 2)),
                 output,
                 true,
             )?;
-            // Wait for the two processes to finish
-            wait().map_err(|e| Interrupt::ExecError(e))?;
-            wait().map_err(|e| Interrupt::ExecError(e))?;
-            // Pipe will be automatically deleted
+            // Wait for all the processes to finish
+            for _ in 0..ps.len() {
+                wait().map_err(|e| Interrupt::ExecError(format!("Cannot wait, {}", e.desc())))?;
+            }
+            for id in 0..(ps.len() - 1) {
+                let fifo_path = format!("fifo{}.pipe", id);
+                remove_file(fifo_path).unwrap();
+            }
             Ok(())
         }
     }

@@ -1,11 +1,11 @@
 use crate::lex::Token;
 
-type Command = (Vec<String>, bool);
+type Command = (Vec<String>, bool); // .1: Whether run in background
 
 #[derive(Debug, Clone)]
 pub enum Proc {
-    SubProc(Command), // Whether run in background
-    Pipe(Box<Proc>, Command),
+    SubProc(Command),
+    Pipe(Vec<Proc>),
     RRed(Box<Proc>, String),
     LRed(Box<Proc>, String),
 }
@@ -38,7 +38,6 @@ fn read_until_op(it: &mut std::slice::Iter<Token>) -> Option<(Option<Op>, Comman
             }
             Token::Background => {
                 is_background = true;
-                break;
             }
         }
     }
@@ -57,6 +56,7 @@ pub fn parse(toks: Vec<Token>) -> Option<Proc> {
     let mut cur = Proc::SubProc((Vec::new(), false));
     let mut it = toks.iter();
     let mut cur_op = None;
+    let mut cur_pipes = Vec::new();
     while let Some((op, tok)) = read_until_op(&mut it) {
         match cur_op {
             None => {
@@ -65,7 +65,17 @@ pub fn parse(toks: Vec<Token>) -> Option<Proc> {
             }
             Some(Op::Pipe) => {
                 // cur | tok
-                cur = Proc::Pipe(Box::new(cur), tok.clone());
+                cur_pipes.push(Proc::SubProc(tok));
+                match op {
+                    Some(Op::Pipe) => {}
+                    _ => {
+                        // Need to push cur_pipes
+                        let mut cp = vec![cur];
+                        cp.extend(cur_pipes.clone());
+                        cur = Proc::Pipe(cp);
+                        cur_pipes.clear();
+                    }
+                }
             }
             Some(Op::RRed) => {
                 // cur > tok
