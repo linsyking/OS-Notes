@@ -50,7 +50,10 @@ fn main() {
                     exit_code = 1;
                     break;
                 }
-                Interrupt::Exit(code) => exit_code = code,
+                Interrupt::Exit(code) => {
+                    exit_code = code;
+                    break;
+                }
                 Interrupt::ExecError(e) => {
                     eprintln!("Error: {}", e);
                 }
