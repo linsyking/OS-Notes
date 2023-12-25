@@ -3,7 +3,7 @@ use nix::fcntl::{open, OFlag};
 use nix::libc::{STDIN_FILENO, STDOUT_FILENO};
 use nix::sys::stat::Mode;
 use nix::sys::wait::wait;
-use nix::unistd::{chdir, mkfifo, ForkResult};
+use nix::unistd::{chdir, mkfifo, pipe, ForkResult};
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
 use std::fs::remove_file;
@@ -39,6 +39,10 @@ pub fn check_prog(cmd: &Proc) -> Result<(), Interrupt> {
         _ => {}
     }
     Ok(())
+}
+
+fn pipe_file(id: usize) -> String {
+    format!("/tmp/fifo{}.pipe", id)
 }
 
 pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Result<(), Interrupt> {
@@ -109,7 +113,9 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                         }
                         ForkResult::Child => {
                             match output {
-                                Output::Stdout => {}
+                                Output::Stdout => {
+                                    // You may add post processor here
+                                }
                                 Output::File(path) => {
                                     // fd = open(path)
                                     // dup2(fd, stdout)
@@ -233,7 +239,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                 panic!("Invalid Pipe detected");
             }
             for id in 0..(ps.len() - 1) {
-                let fifo_path = format!("fifo{}.pipe", id);
+                let fifo_path = pipe_file(id);
                 // println!("[DEBUG] Creating tmp pipe {}", fifo_path);
                 mkfifo(fifo_path.as_str(), Mode::S_IRWXU)
                     .map_err(|e| Interrupt::ExecError(format!("Makefifo error, {}", e.desc())))?;
@@ -241,21 +247,21 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
             eval(
                 ps.first().unwrap(),
                 input,
-                &Output::Pipefile(format!("fifo0.pipe")),
+                &Output::Pipefile(pipe_file(0)),
                 true,
             )?;
             for id in 1..(ps.len() - 1) {
                 let cps = &ps[id];
                 eval(
                     cps,
-                    &Input::Pipefile(format!("fifo{}.pipe", id - 1)),
-                    &Output::Pipefile(format!("fifo{}.pipe", id)),
+                    &Input::Pipefile(pipe_file(id - 1)),
+                    &Output::Pipefile(pipe_file(id)),
                     true,
                 )?;
             }
             eval(
                 ps.last().unwrap(),
-                &Input::Pipefile(format!("fifo{}.pipe", ps.len() - 2)),
+                &Input::Pipefile(pipe_file(ps.len() - 2)),
                 output,
                 true,
             )?;
@@ -264,7 +270,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                 wait().map_err(|e| Interrupt::ExecError(format!("Cannot wait, {}", e.desc())))?;
             }
             for id in 0..(ps.len() - 1) {
-                let fifo_path = format!("fifo{}.pipe", id);
+                let fifo_path = pipe_file(id);
                 remove_file(fifo_path).unwrap();
             }
             Ok(())
