@@ -4,7 +4,7 @@
 
 ---
 
-Writing this in C needs using `fork()`, `exec()`, `wait()`, `dup2()`, and `pipe()`.
+Writing this in C needs using `fork()`, `exec()`, `wait()`, `dup2()`, `chdir()` and `pipe()`.
 
 In Rust we use `nix` library to do those syscalls.
 
@@ -44,16 +44,22 @@ ls | cat < a
 ## Multiple pipes
 
 ```
-echo hello | head -c 1 | cat
+echo hello | head -c 1 | cat | ./post
 
-head /dev/urandom | tr -dc a-z | head -c 10
+head /dev/urandom | tr -dc [:graph:] | head -c 10 | ./post
 
 ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 ```
 
 ## Known Issues
 
-- No post-processors, so if a program outputs something without `\n`, you might not see it
+- No internal post-processors, so if a program outputs something without `\n`, you might not see it
+
+## Warnings
+
+> It is important to notice that both the parent process and the child process initially close their unused ends of the pipe.
+>
+> It is an important step to ensure that a process reading from the pipe can detect end-of-file (`read()` returns 0) when the writer has closed its end of the pipe.
 
 ## Reference
 
