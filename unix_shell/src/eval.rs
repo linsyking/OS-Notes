@@ -81,6 +81,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
             let cmd0 = cmd[0].as_str();
             match cmd0 {
                 "exit" if cmd.len() <= 2 => {
+                    // Exit with code
                     if let Some(code) = cmd.get(1) {
                         if let Ok(code) = code.parse() {
                             Err(Interrupt::Exit(code))
@@ -93,6 +94,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                     }
                 }
                 "cd" if cmd.len() <= 2 => {
+                    // Change working dir
                     if let Some(path) = cmd.get(1) {
                         chdir(path.as_str()).map_err(|_| {
                             Interrupt::ExecError(format!("Cannot cd such file or directory"))
@@ -191,6 +193,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                     dup2_wrap(fd.0, STDIN_FILENO)?;
                                 }
                             }
+                            // Convert Vec<String> to Vec<CStr>
                             let pname = CString::new(cmd0).unwrap();
                             let pname = pname.as_c_str();
                             let pargs = cmd.clone();
