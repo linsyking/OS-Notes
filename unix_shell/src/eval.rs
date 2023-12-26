@@ -153,8 +153,9 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                     )
                                     .map_err(|e| {
                                         Interrupt::ChildError(format!(
-                                            "Subprocess {:?} error: {}",
+                                            "Subprocess {:?} file {} open error: {}",
                                             cmd,
+                                            path,
                                             e.desc()
                                         ))
                                     })?;
@@ -172,7 +173,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                     let fd = open(path.as_str(), OFlag::O_RDONLY, Mode::S_IRUSR)
                                         .map_err(|e| {
                                             Interrupt::ChildError(format!(
-                                                "Subprocess {:?} pipefile {} open error: {}",
+                                                "Subprocess {:?} file {} open error: {}",
                                                 cmd,
                                                 path,
                                                 e.desc()
