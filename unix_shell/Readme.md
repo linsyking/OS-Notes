@@ -43,9 +43,9 @@ ls | cat < a
 ## Multiple pipes
 
 ```
-echo hello | head -c 1 | cat | ./post
+echo hello | head -c 1 | cat | awk "{print $1}"
 
-head /dev/urandom | tr -dc [:graph:] | head -c 10 | ./post
+head /dev/urandom | tr -dc [:graph:] | head -c 10 | awk "{print $1}"
 
 ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 ```
@@ -53,6 +53,14 @@ ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 ## Known Issues
 
 - No internal post-processors, so if a program outputs something without `\n`, you might not see it
+
+You can append an `awk` command to print.
+
+Example:
+
+```sh
+... | awk "{print $1}"
+```
 
 ## Warnings
 

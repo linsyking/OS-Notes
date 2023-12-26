@@ -28,13 +28,13 @@ pub fn lex(line: &String) -> Vec<Token> {
             }
             '\\' => {
                 let cn = it.next().unwrap();
-                if cn != ' ' && cn != '"' && cn != '\'' {
+                if cn != ' ' && cn != '"' {
                     cur.push(c);
                 }
                 cur.push(cn);
                 continue;
             }
-            '"' | '\'' => {
+            '"' => {
                 if is_in_str {
                     is_in_str = false;
                     // Terminate string
