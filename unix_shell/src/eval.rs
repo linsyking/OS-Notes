@@ -61,6 +61,11 @@ fn close_wrap(fd: RawFd) -> Result<(), Interrupt> {
     Ok(())
 }
 
+fn close_child_wrap(fd: RawFd) -> Result<(), Interrupt> {
+    close(fd).map_err(|e| Interrupt::ChildError(format!("Cannot close pipe, {}", e.desc())))?;
+    Ok(())
+}
+
 fn dup2_wrap(oldfd: RawFd, newfd: RawFd) -> Result<(), Interrupt> {
     dup2(oldfd, newfd).map_err(|e| Interrupt::ChildError(format!("dup2 error: {}", e.desc())))?;
     Ok(())
@@ -163,7 +168,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                 }
                                 Output::Pipefile(fd) => {
                                     // println!("[DEBUG] Setting output to {}", fd);
-                                    close_wrap(fd.0)?;
+                                    close_child_wrap(fd.0)?;
                                     dup2_wrap(fd.1, STDOUT_FILENO)?;
                                 }
                             }
