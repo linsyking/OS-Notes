@@ -60,14 +60,7 @@ fn main() {
             }
         }
     }
-    println!("[DEBUG] Wait for all child processes to quit...");
-    match wait() {
-        Ok(_) => {
-            println!("[DEBUG] Gracefully shutdown")
-        }
-        Err(e) => {
-            println!("[DEBUG] {}", e.desc())
-        }
-    }
+    // println!("[DEBUG] Wait for all child processes to quit...");
+    while let Ok(_) = wait() {}
     exit(exit_code);
 }

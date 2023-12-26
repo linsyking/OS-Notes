@@ -19,7 +19,7 @@ In Rust we use `nix` library to do those syscalls.
 
 ## Syntax
 
-There are no semicolon, keywords. You are only allowed to do pipes and redirections.
+There are no semicolon, keywords. You are only allowed to use pipe and redirection operator.
 
 You cannot have 2 stdin for one command.
 
@@ -64,3 +64,4 @@ ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 ## Reference
 
 - https://stackoverflow.com/questions/35007063/c-pipe-and-fork-closing-nothing-gets-printed
+- https://stackoverflow.com/questions/11599462/what-happens-if-a-child-process-wont-close-the-pipe-from-writing-while-reading

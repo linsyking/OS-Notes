@@ -6,6 +6,7 @@ use nix::sys::wait::wait;
 use nix::unistd::{chdir, close, pipe, ForkResult};
 use nix::unistd::{dup2, execvp, fork};
 use std::ffi::{CStr, CString};
+use std::os::fd::RawFd;
 
 #[derive(Debug)]
 pub enum Interrupt {
@@ -14,18 +15,20 @@ pub enum Interrupt {
     Exit(i32),
 }
 
+type Ends = (i32, i32); // (r, w)
+
 #[derive(Debug, Clone)]
 pub enum Output {
     Stdout,
     File(String),
-    Pipefile(i32),
+    Pipefile(Ends),
 }
 
 #[derive(Debug, Clone)]
 pub enum Input {
     Stdin,
     File(String),
-    Pipefile(i32),
+    Pipefile(Ends),
 }
 
 pub fn check_prog(cmd: &Proc) -> Result<(), Interrupt> {
@@ -42,6 +45,25 @@ pub fn check_prog(cmd: &Proc) -> Result<(), Interrupt> {
 
 fn pipe_wrap() -> Result<(i32, i32), Interrupt> {
     pipe().map_err(|e| Interrupt::ExecError(format!("Cannot create pipe, {}", e.desc())))
+}
+
+fn fork_wrap() -> Result<ForkResult, Interrupt> {
+    unsafe { fork() }.map_err(|_| Interrupt::ExecError(format!("Cannot fork")))
+}
+
+fn wait_wrap() -> Result<(), Interrupt> {
+    wait().map_err(|e| Interrupt::ExecError(format!("Cannot wait, {}", e.desc())))?;
+    Ok(())
+}
+
+fn close_wrap(fd: RawFd) -> Result<(), Interrupt> {
+    close(fd).map_err(|e| Interrupt::ExecError(format!("Cannot close pipe, {}", e.desc())))?;
+    Ok(())
+}
+
+fn dup2_wrap(oldfd: RawFd, newfd: RawFd) -> Result<(), Interrupt> {
+    dup2(oldfd, newfd).map_err(|e| Interrupt::ChildError(format!("dup2 error: {}", e.desc())))?;
+    Ok(())
 }
 
 pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Result<(), Interrupt> {
@@ -95,8 +117,7 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                     //     "[DEBUG] Forking prog {:?}, input {:?}, output {:?}",
                     //     cmd, input, output
                     // );
-                    let pres = unsafe { fork() }
-                        .map_err(|_| Interrupt::ExecError(format!("Cannot fork")))?;
+                    let pres = fork_wrap()?;
                     match pres {
                         ForkResult::Parent { child: _ } => {
                             // println!(
@@ -105,27 +126,19 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                             // );
                             // Close unused pipe ends
                             if let Input::Pipefile(fd) = input {
-                                close(*fd).map_err(|e| {
-                                    Interrupt::ExecError(format!("Cannot close pipe, {}", e.desc()))
-                                })?;
+                                close_wrap(fd.0)?;
                             }
                             if let Output::Pipefile(fd) = output {
-                                close(*fd).map_err(|e| {
-                                    Interrupt::ExecError(format!("Cannot close pipe, {}", e.desc()))
-                                })?;
+                                close_wrap(fd.1)?;
                             }
                             if !is_background && !non_block {
-                                wait().map_err(|e| {
-                                    Interrupt::ExecError(format!("Cannot wait, {}", e.desc()))
-                                })?;
+                                wait_wrap()?;
                             }
                             // println!("[DEBUG] Child process {} exited!", child.as_raw());
                         }
                         ForkResult::Child => {
                             match output {
-                                Output::Stdout => {
-                                    // You may add post processor here
-                                }
+                                Output::Stdout => {}
                                 Output::File(path) => {
                                     // fd = open(path)
                                     // dup2(fd, stdout)
@@ -145,23 +158,12 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                             e.desc()
                                         ))
                                     })?;
-                                    dup2(fd, STDOUT_FILENO).map_err(|e| {
-                                        Interrupt::ChildError(format!(
-                                            "Subprocess {:?} error: {}",
-                                            cmd,
-                                            e.desc()
-                                        ))
-                                    })?;
+                                    dup2_wrap(fd, STDOUT_FILENO)?;
                                 }
                                 Output::Pipefile(fd) => {
                                     // println!("[DEBUG] Setting output to {}", fd);
-                                    dup2(*fd, STDOUT_FILENO).map_err(|e| {
-                                        Interrupt::ChildError(format!(
-                                            "Subprocess {:?} error: {}",
-                                            cmd,
-                                            e.desc()
-                                        ))
-                                    })?;
+                                    close_wrap(fd.0)?;
+                                    dup2_wrap(fd.1, STDOUT_FILENO)?;
                                 }
                             }
                             match input {
@@ -176,23 +178,11 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                                                 e.desc()
                                             ))
                                         })?;
-                                    dup2(fd, STDIN_FILENO).map_err(|e| {
-                                        Interrupt::ChildError(format!(
-                                            "Subprocess {:?} error: {}",
-                                            cmd,
-                                            e.desc()
-                                        ))
-                                    })?;
+                                    dup2_wrap(fd, STDIN_FILENO)?;
                                 }
                                 Input::Pipefile(fd) => {
                                     // println!("[DEBUG] Setting input to {}", fd);
-                                    dup2(*fd, STDIN_FILENO).map_err(|e| {
-                                        Interrupt::ChildError(format!(
-                                            "Subprocess {:?} error: {}",
-                                            cmd,
-                                            e.desc()
-                                        ))
-                                    })?;
+                                    dup2_wrap(fd.0, STDIN_FILENO)?;
                                 }
                             }
                             let pname = CString::new(cmd0).unwrap();
@@ -230,15 +220,15 @@ pub fn eval(cmd: &Proc, input: &Input, output: &Output, non_block: bool) -> Resu
                 // Invalid!
                 panic!("Invalid Pipe detected");
             }
-            let (mut pr, pw) = pipe_wrap()?;
-            eval(ps.first().unwrap(), input, &Output::Pipefile(pw), true)?;
+            let mut p = pipe_wrap()?;
+            eval(ps.first().unwrap(), input, &Output::Pipefile(p), true)?;
             for id in 1..(ps.len() - 1) {
                 let cps = &ps[id];
-                let (npr, npw) = pipe_wrap()?;
-                eval(cps, &Input::Pipefile(pr), &Output::Pipefile(npw), true)?;
-                pr = npr;
+                let np = pipe_wrap()?;
+                eval(cps, &Input::Pipefile(p), &Output::Pipefile(np), true)?;
+                p = np;
             }
-            eval(ps.last().unwrap(), &Input::Pipefile(pr), output, true)?;
+            eval(ps.last().unwrap(), &Input::Pipefile(p), output, true)?;
             // Wait for all the processes to finish
             for _ in 0..ps.len() {
                 wait().map_err(|e| Interrupt::ExecError(format!("Cannot wait, {}", e.desc())))?;
