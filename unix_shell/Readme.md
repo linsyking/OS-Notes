@@ -60,7 +60,7 @@ ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 >
 > It is an important step to ensure that a process reading from the pipe can detect end-of-file (`read()` returns 0) when the writer has closed its end of the pipe.
 
-For the named pipe implementation, see commit b7ba6af.
+For the named pipe implementation, see [this commit](https://github.com/linsyking/OS-Notes/tree/7c74ad691cda97d179cf06c3a67b17d75b7ba6af).
 
 ## Reference
 
