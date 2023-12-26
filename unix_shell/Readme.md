@@ -60,6 +60,8 @@ ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 >
 > It is an important step to ensure that a process reading from the pipe can detect end-of-file (`read()` returns 0) when the writer has closed its end of the pipe.
 
+For the named pipe implementation, see commit b7ba6af.
+
 ## Reference
 
 - https://stackoverflow.com/questions/35007063/c-pipe-and-fork-closing-nothing-gets-printed
