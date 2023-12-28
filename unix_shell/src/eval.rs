@@ -31,16 +31,44 @@ pub enum Input {
     Pipefile(Ends),
 }
 
+fn validate(cmd: &Proc, has_input: bool, has_output: bool) -> Result<(), Interrupt> {
+    match cmd {
+        Proc::SubProc(_) => Ok(()),
+        Proc::LRed(p, _) => {
+            if has_input {
+                Err(Interrupt::ExecError(format!("{:?} already has input", p)))
+            } else {
+                validate(p, true, has_output)
+            }
+        }
+        Proc::RRed(p, _) => {
+            if has_output {
+                Err(Interrupt::ExecError(format!("{:?} already has output", p)))
+            } else {
+                validate(p, has_input, true)
+            }
+        }
+        Proc::Pipe(ps) => {
+            if has_input {
+                Err(Interrupt::ExecError(format!(
+                    "{:?}: pipe cannot be fed with input",
+                    ps
+                )))
+            } else {
+                validate(ps.first().unwrap(), false, true)?;
+                for i in 1..(ps.len() - 1) {
+                    let p = &ps[i];
+                    validate(p, true, true)?;
+                }
+                validate(ps.last().unwrap(), true, has_output)
+            }
+        }
+    }
+}
+
 pub fn check_prog(cmd: &Proc) -> Result<(), Interrupt> {
     // Check if the command is valid
-    // TO-DO
-    match cmd {
-        Proc::SubProc((cs, _)) if cs.is_empty() => {
-            return Err(Interrupt::ExecError(format!("Error: Syntax error")));
-        }
-        _ => {}
-    }
-    Ok(())
+    validate(cmd, false, false)
 }
 
 fn pipe_wrap() -> Result<(i32, i32), Interrupt> {

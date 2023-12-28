@@ -18,7 +18,7 @@ fn run_test(s: &str, pass: bool) {
 fn syntax() {
     run_test("ls | ls", true);
     run_test("ls > a > a", false);
-    run_test("ls > a < a", false);
+    run_test("ls > a < a", true);
     run_test("ls > a | cat", false);
     run_test("ls < a < s", false);
     run_test("ls | cat > b | m", false);
