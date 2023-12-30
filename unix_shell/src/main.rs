@@ -4,7 +4,9 @@ use unix_shell::ast::parse;
 use unix_shell::eval::{check_prog, eval, Input, Interrupt, Output};
 use unix_shell::lex::lex;
 
-use rustyline::error::ReadlineError;
+use reedline::{
+    default_emacs_keybindings, DefaultPrompt, Emacs, FileBackedHistory, Reedline, Signal,
+};
 
 fn execute(line: &String) -> Result<(), Interrupt> {
     let args = lex(line);
@@ -23,23 +25,32 @@ fn execute(line: &String) -> Result<(), Interrupt> {
 }
 
 fn main() {
+    let prompt = DefaultPrompt::default();
+    let keybindings = default_emacs_keybindings();
+    let edit_mode = Box::new(Emacs::new(keybindings));
+    let history = Box::new(
+        FileBackedHistory::with_file(1000, ".history".into())
+            .expect("Error configuring history with file"),
+    );
+    let mut line_editor = Reedline::create()
+        .with_edit_mode(edit_mode)
+        .with_history(history);
     let mut exit_code = 0;
-    let mut rl = rustyline::DefaultEditor::new().unwrap();
     loop {
-        let readline = rl.readline("> ");
-        let line = match readline {
-            Ok(l) => {
-                rl.add_history_entry(l.as_str()).unwrap();
-                l
+        let sig = line_editor.read_line(&prompt);
+        let line = match sig {
+            Ok(Signal::Success(buffer)) => {
+                line_editor.sync_history().unwrap();
+                buffer
             }
-            Err(ReadlineError::Interrupted) => {
+            Ok(Signal::CtrlC) => {
                 continue;
             }
-            Err(ReadlineError::Eof) => {
+            Ok(Signal::CtrlD) => {
                 break;
             }
-            Err(_) => {
-                println!("invalid input");
+            x => {
+                println!("Event: {:?}", x);
                 break;
             }
         };
