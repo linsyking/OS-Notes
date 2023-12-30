@@ -1,4 +1,5 @@
 use nix::sys::wait::wait;
+use rustyline::Config;
 use std::process::exit;
 use unix_shell::ast::parse;
 use unix_shell::eval::{check_prog, eval, Input, Interrupt, Output};
@@ -23,13 +24,16 @@ fn execute(line: &String) -> Result<(), Interrupt> {
 }
 
 fn main() {
+    let config = Config::builder().check_cursor_position(true).build();
     let mut exit_code = 0;
-    let mut rl = rustyline::DefaultEditor::new().unwrap();
+    let mut rl = rustyline::DefaultEditor::with_config(config).unwrap();
+    let _ = rl.load_history(".history");
     loop {
         let readline = rl.readline("> ");
         let line = match readline {
             Ok(l) => {
                 rl.add_history_entry(l.as_str()).unwrap();
+                rl.save_history(".history").unwrap();
                 l
             }
             Err(ReadlineError::Interrupted) => {
