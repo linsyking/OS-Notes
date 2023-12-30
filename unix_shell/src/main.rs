@@ -25,7 +25,7 @@ fn execute(line: &String) -> Result<(), Interrupt> {
 }
 
 fn main() {
-    let prompt = DefaultPrompt::new(DefaultPromptSegment::Empty, DefaultPromptSegment::Empty);
+    let prompt = DefaultPrompt::new(DefaultPromptSegment::WorkingDirectory, DefaultPromptSegment::Empty);
     let keybindings = default_emacs_keybindings();
     let edit_mode = Box::new(Emacs::new(keybindings));
     let history = Box::new(
