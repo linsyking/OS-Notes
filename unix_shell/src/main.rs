@@ -5,7 +5,7 @@ use unix_shell::eval::{check_prog, eval, Input, Interrupt, Output};
 use unix_shell::lex::lex;
 
 use reedline::{
-    default_emacs_keybindings, DefaultPrompt, Emacs, FileBackedHistory, Reedline, Signal,
+    default_emacs_keybindings, DefaultPrompt, Emacs, FileBackedHistory, Reedline, Signal, DefaultPromptSegment,
 };
 
 fn execute(line: &String) -> Result<(), Interrupt> {
@@ -25,7 +25,7 @@ fn execute(line: &String) -> Result<(), Interrupt> {
 }
 
 fn main() {
-    let prompt = DefaultPrompt::default();
+    let prompt = DefaultPrompt::new(DefaultPromptSegment::Empty, DefaultPromptSegment::Empty);
     let keybindings = default_emacs_keybindings();
     let edit_mode = Box::new(Emacs::new(keybindings));
     let history = Box::new(
