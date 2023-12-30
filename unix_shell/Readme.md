@@ -52,6 +52,8 @@ ps -ef | awk "{print $1}" | sort | uniq -c | sort -n
 
 ## Known Issues
 
+None.
+
 ## Warnings
 
 > It is important to notice that both the parent process and the child process initially close their unused ends of the pipe.

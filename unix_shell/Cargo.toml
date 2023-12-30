@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 nix = { version = "0.27.1", features = ["fs", "process"] }
-reedline = "0.27.1"
+rustyline = { version = "13.0.0", features = ["derive"] }
